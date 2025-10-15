@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloudflare Worker 广告管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { padding: 20px; max-width: 1200px; margin: 0 auto; background: #f5f5f5; }
+        .tab-container { margin-bottom: 20px; }
+        .tab-btn { padding: 10px 20px; border: none; background: #fff; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: bold; }
+        .tab-content { display: none; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .tab-content.active { display: block; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        input, textarea, select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: #2563eb; color: #fff; }
+        .btn-danger { background: #dc2626; color: #fff; }
+        .list-container { margin-top: 20px; }
+        .list-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .list-item:last-child { border-bottom: none; }
+        .item-info { flex: 1; }
+        .item-actions { display: flex; gap: 10px; }
+        .alert { padding: 10px; margin-bottom: 15px; border-radius: 4px; font-size: 14px; }
+        .alert-success { background: #ecfdf5; color: #059669; }
+        .alert-error { background: #fee2e2; color: #dc2626; }
+        .worker-url-group { background: #f0f9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Cloudflare Worker 广告管理平台</h1>
+
+    <!-- Worker 接口地址配置 -->
+    <div class="worker-url-group">
+        <label>你的 Worker 基础地址（例如：https://xxx.cloudflareworkers.com）：</label>
+        <input type="text" id="workerBaseUrl" placeholder="https://你的Worker域名" value="">
+        <button class="btn-primary" onclick="saveWorkerUrl()">保存地址</button>
+    </div>
+
+    <!-- 标签页切换 -->
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('placement-tab')">广告位管理</button>
+        <button class="tab-btn" onclick="switchTab('ad-tab')">广告管理</button>
+    </div>
+
+    <!-- 广告位管理标签页 -->
+    <div id="placement-tab" class="tab-content active">
+        <!-- 新增广告位表单 -->
+        <h3>新增广告位</h3>
+        <div class="form-group">
+            <label>广告位ID（唯一标识，如：sidebar-1）：</label>
+            <input type="text" id="placementId" placeholder="输入广告位ID">
+        </div>
+        <div class="form-group">
+            <label>广告位名称（如：侧边栏广告位）：</label>
+            <input type="text" id="placementName" placeholder="输入广告位名称">
+        </div>
+        <div class="form-group">
+            <label>广告位描述（如：首页侧边栏，300x600px）：</label>
+            <textarea id="placementDesc" rows="2" placeholder="输入广告位描述"></textarea>
+        </div>
+        <div class="form-group">
+            <label>状态：</label>
+            <select id="placementStatus">
+                <option value="active">启用</option>
+                <option value="inactive">禁用</option>
+            </select>
+        </div>
+        <button class="btn-primary" onclick="addPlacement()">添加广告位</button>
+
+        <!-- 广告位列表 -->
+        <div class="list-container" id="placementList">
+            <div class="alert">请先填写并保存 Worker 地址，再刷新列表</div>
+        </div>
+    </div>
+
+    <!-- 广告管理标签页 -->
+    <div id="ad-tab" class="tab-content">
+        <!-- 新增广告表单 -->
+        <h3>新增广告</h3>
+        <div class="form-group">
+            <label>广告名称（如：首页Banner广告）：</label>
+            <input type="text" id="adName" placeholder="输入广告名称">
+        </div>
+        <div class="form-group">
+            <label>广告类型：</label>
+            <select id="adType">
+                <option value="image">图片广告（输入图片URL）</option>
+                <option value="text">文本广告（输入文本内容）</option>
+                <option value="html">HTML广告（输入HTML代码）</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>广告内容（图片URL/文本/HTML）：</label>
+            <textarea id="adContent" rows="3" placeholder="输入广告内容"></textarea>
+        </div>
+        <div class="form-group">
+            <label>关联广告位（需先创建广告位）：</label>
+            <select id="adPlacementId">
+                <option value="">加载中...</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>状态：</label>
+            <select id="adStatus">
+                <option value="active">启用</option>
+                <option value="inactive">禁用</option>
+            </select>
+        </div>
+        <button class="btn-primary" onclick="addAd()">添加广告</button>
+
+        <!-- 广告列表 -->
+        <div class="list-container" id="adList">
+            <div class="alert">请先填写并保存 Worker 地址，再刷新列表</div>
+        </div>
+    </div>
+
+    <script>
+        // 存储 Worker 地址到本地存储
+        function saveWorkerUrl() {
+            const url = document.getElementById('workerBaseUrl').value.trim();
+            if (!url) {
+                alert('请输入有效的 Worker 地址！');
+                return;
+            }
+            localStorage.setItem('workerBaseUrl', url);
+            alert('地址保存成功！');
+            // 保存后刷新列表
+            loadPlacementList();
+            loadAdPlacementOptions();
+            loadAdList();
+        }
+
+        // 从本地存储获取 Worker 地址
+        function getWorkerUrl() {
+            return localStorage.getItem('workerBaseUrl') || '';
+        }
+
+        // 页面加载时自动填充 Worker 地址
+        window.onload = function() {
+            const url = getWorkerUrl();
+            if (url) {
+                document.getElementById('workerBaseUrl').value = url;
+                // 自动加载列表
+                loadPlacementList();
+                loadAdPlacementOptions();
+                loadAdList();
+            }
+        };
+
+        // 标签页切换
+        function switchTab(tabId) {
+            // 切换按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-btn[onclick="switchTab('${tabId}')"]`).classList.add('active');
+            // 切换内容显示
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // -------------------------- 广告位相关功能 --------------------------
+        // 加载广告位列表
+        async function loadPlacementList() {
+            const url = getWorkerUrl();
+            if (!url) return;
+            const listContainer = document.getElementById('placementList');
+            try {
+                const res = await fetch(`${url}/placement/list`);
+                const data = await res.json();
+                if (!data.data || data.data.length === 0) {
+                    listContainer.innerHTML = '<div class="alert">暂无广告位数据</div>';
+                    return;
+                }
+                // 生成列表HTML
+                let html = '';
+                data.data.forEach(placement => {
+                    html += `
+                        <div class="list-item">
+                            <div class="item-info">
+                                <strong>ID：${escapeHtml(placement.id)}</strong><br>
+                                名称：${escapeHtml(placement.name)}<br>
+                                描述：${escapeHtml(placement.description)}<br>
+                                状态：${placement.status === 'active' ? '<span style="color:green">启用</span>' : '<span style="color:red">禁用</span>'}
+                            </div>
+                            <div class="item-actions">
+                                <button class="btn-danger" onclick="deletePlacement('${escapeHtml(placement.id)}')">删除</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                listContainer.innerHTML = html;
+            } catch (err) {
+                listContainer.innerHTML = `<div class="alert alert-error">加载失败：${err.message}</div>`;
+            }
+        }
+
+        // 新增广告位
+        async function addPlacement() {
+            const url = getWorkerUrl();
+            if (!url) {
+                alert('请先保存 Worker 地址！');
+                return;
+            }
+            // 获取表单数据
+            const placement = {
+                id: document.getElementById('placementId').value.trim(),
+                name: document.getElementById('placementName').value.trim(),
+                description: document.getElementById('placementDesc').value.trim(),
+                status: document.getElementById('placementStatus').value
+            };
+            // 校验必填项
+            if (!placement.id || !placement.name || !placement.description) {
+                alert('广告位ID、名称、描述为必填项！');
+                return;
+            }
+            try {
+                const res = await fetch(`${url}/placement/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(placement)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('广告位添加成功！');
+                    // 清空表单并刷新列表
+                    document.getElementById('placementId').value = '';
+                    document.getElementById('placementName').value = '';
+                    document.getElementById('placementDesc').value = '';
+                    loadPlacementList();
+                    loadAdPlacementOptions();
+                } else {
+                    alert(`添加失败：${data.error || '未知错误'}`);
+                }
+            } catch (err) {
+                alert(`添加失败：${err.message}`);
+            }
+        }
+
+        // 删除广告位
+        async function deletePlacement(placementId) {
+            const url = getWorkerUrl();
+            if (!url) return;
+            if (!confirm(`确定要删除广告位「${placementId}」吗？`)) return;
+            try {
+                const res = await fetch(`${url}/placement/delete?placementId=${placementId}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('广告位删除成功！');
+                    loadPlacementList();
+                    loadAdPlacementOptions();
+                    loadAdList();
+                } else {
+                    alert(`删除失败：${data.error || '未知错误'}`);
+                }
+            } catch (err) {
+                alert(`删除失败：${err.message}`);
+            }
+        }
+
+        // -------------------------- 广告相关功能 --------------------------
+        // 加载广告的「关联广告位」下拉选项
+        async function loadAdPlacementOptions() {
+            const url = getWorkerUrl();
+            if (!url) return;
+            const select = document.getElementById('adPlacementId');
+            try {
+                const res = await fetch(`${url}/placement/list`);
+                const data = await res.json();
+                if (!data.data || data.data.length === 0) {
+                    select.innerHTML = '<option value="">暂无可用广告位（需先创建）</option>';
+                    return;
+                }
+                // 只显示启用的广告位
+                const activePlacements = data.data.filter(p => p.status === 'active');
+                let html = '<option value="">请选择关联的广告位</option>';
+                activePlacements.forEach(p => {
+                    html += `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}（ID：${escapeHtml(p.id)}）</option>`;
+                });
+                select.innerHTML = html;
+            } catch (err) {
+                select.innerHTML = `<option value="">加载失败：${err.message}</option>`;
+            }
+        }
+
+        // 加载广告列表
+        async function loadAdList() {
+            const url = getWorkerUrl();
+            if (!url) return;
+            const listContainer = document.getElementById('adList');
+            try {
+                const res = await fetch(`${url}/ad/list`);
+                const data = await res.json();
+                if (!data.data || data.data.length === 0) {
+                    listContainer.innerHTML = '<div class="alert">暂无广告数据</div>';
+                    return;
+                }
+                // 生成列表HTML
+                let html = '';
+                data.data.forEach(ad => {
+                    html += `
+                        <div class="list-item">
+                            <div class="item-info">
+                                <strong>名称：${escapeHtml(ad.name)}</strong><br>
+                                类型：${ad.type === 'image' ? '图片' : ad.type === 'text' ? '文本' : 'HTML'}<br>
+                                关联广告位：${escapeHtml(ad.placementId)}<br>
+                                状态：${ad.status === 'active' ? '<span style="color:green">启用</span>' : '<span style="color:red">禁用</span>'}<br>
+                                展示量：${ad.impressions} | 点击量：${ad.clicks}
+                            </div>
+                            <div class="item-actions">
+                                <button class="btn-danger" onclick="deleteAd('${escapeHtml(ad.id)}')">删除</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                listContainer.innerHTML = html;
+            } catch (err) {
+                listContainer.innerHTML = `<div class="alert alert-error">加载失败：${err.message}</div>`;
+            }
+        }
+
+        // 新增广告
+        async function addAd() {
+            const url = getWorkerUrl();
+            if (!url) {
+                alert('请先保存 Worker 地址！');
+                return;
+            }
+            // 获取表单数据
+            const ad = {
+                name: document.getElementById('adName').value.trim(),
+                type: document.getElementById('adType').value,
+                content: document.getElementById('adContent').value.trim(),
+                placementId: document.getElementById('adPlacementId').value,
+                status: document.getElementById('adStatus').value
+            };
+            // 校验必填项
+            if (!ad.name || !ad.content || !ad.placementId) {
+                alert('广告名称、内容、关联广告位为必填项！');
+                return;
+            }
+            try {
+                const res = await fetch(`${url}/ad/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ad)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('广告添加成功！');
+                    // 清空表单并刷新列表
+                    document.getElementById('adName').value = '';
+                    document.getElementById('adContent').value = '';
+                    loadAdList();
+                } else {
+                    alert(`添加失败：${data.error || '未知错误'}`);
+                }
+            } catch (err) {
+                alert(`添加失败：${err.message}`);
+            }
+        }
+
+        // 删除广告
+        async function deleteAd(adId) {
+            const url = getWorkerUrl();
+            if (!url) return;
+            if (!confirm(`确定要删除广告「${adId}」吗？`)) return;
+            try {
+                const res = await fetch(`${url}/ad/delete?id=${adId}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('广告删除成功！');
+                    loadAdList();
+                } else {
+                    alert(`删除失败：${data.error || '未知错误'}`);
+                }
+            } catch (err) {
+                alert(`删除失败：${err.message}`);
+            }
+        }
+
+        // HTML转义函数，防止XSS和标签解析错误
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
+    
