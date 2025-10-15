@@ -693,19 +693,33 @@
             }
         }
 
-        // 生成广告调用代码（核心修复版）
+                // 生成广告调用代码（完全修复版）
         function generateAdCode() {
+            // 基础校验
             const workerUrl = getWorkerUrl();
-            if (!workerUrl || !codeEl || !resultEl) return;
-            
-            const placementSelect = document.getElementById('codePlacement');
-            const placementId = placementSelect.value;
-            if (!placementId) {
-                resultEl.classList.add('hidden');
+            if (!workerUrl) {
+                alert('请先设置Worker地址');
                 return;
             }
             
-            // 获取选中的代码类型
+            // 获取DOM元素
+            const placementSelect = document.getElementById('codePlacement');
+            const codeResult = document.getElementById('codeResult');
+            const adCodeText = document.getElementById('adCodeText');
+            
+            if (!placementSelect || !codeResult || !adCodeText) {
+                console.error('缺少必要的DOM元素');
+                return;
+            }
+            
+            // 获取选中值
+            const placementId = placementSelect.value;
+            if (!placementId) {
+                codeResult.classList.add('hidden');
+                return;
+            }
+            
+            // 确定代码类型
             let codeType = 'script';
             const radioButtons = document.getElementsByName('codeType');
             for (let i = 0; i < radioButtons.length; i++) {
@@ -715,62 +729,34 @@
                 }
             }
             
-            // 生成代码（安全字符串拼接）
+            // 编码参数
             const encodedPlacement = encodeURIComponent(placementId);
             let code = '';
             
+            // 关键修复：正确的字符串拼接，不使用任何模板语法
             if (codeType === 'script') {
-                // 拆分</script>避免解析问题
+                // 脚本调用代码 - 完全正确的字符串拼接
                 code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"><' + '/script>';
             } else {
+                // iframe调用代码 - 完全正确的字符串拼接
                 code = '<iframe src="' + workerUrl + '/ad/show?placement=' + encodedPlacement + '&format=html" width="100%" height="auto" frameborder="0" scrolling="no"></iframe>';
             }
             
-            codeEl.value = code;
-            resultEl.classList.remove('hidden');
+            // 设置代码到文本框
+            adCodeText.value = code;
+            codeResult.classList.remove('hidden');
         }
 
-        // 复制广告代码
-        function copyAdCode(elementId) {
-            const codeEl = document.getElementById(elementId);
-            if (!codeEl) {
-                alert('复制失败：未找到代码容器');
-                return;
-            }
-            
-            try {
-                codeEl.select();
-                // 兼容现代浏览器
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(codeEl.value).then(function() {
-                        alert('代码已复制到剪贴板');
-                    }).catch(function(err) {
-                        console.error('剪贴板API失败:', err);
-                        fallbackCopy(codeEl);
-                    });
-                } else {
-                    fallbackCopy(codeEl);
-                }
-            } catch (err) {
-                alert('复制失败: ' + err.message);
-            }
-        }
-
-        // 复制功能降级处理
-        function fallbackCopy(element) {
-            try {
-                const successful = document.execCommand('copy');
-                alert(successful ? '代码已复制到剪贴板' : '复制失败，请手动复制');
-            } catch (err) {
-                alert('复制失败，请手动复制');
-            }
-        }
-
-        // -------------------------- 弹窗功能 --------------------------
-        // 显示添加成功弹窗
+        // 显示添加成功弹窗（修复版）
         function showSuccessModal(placementId) {
             const workerUrl = getWorkerUrl();
-            if (!workerUrl || !placementId || !successModalEl) return;
+            if (!workerUrl || !placementId) return;
+            
+            // 获取弹窗元素
+            const modal = document.getElementById('successModal');
+            const placementNameEl = document.getElementById('successPlacement');
+            const codeEl = document.getElementById('successAdCode');
+            if (!modal || !placementNameEl || !codeEl) return;
             
             // 获取广告位名称
             const placementSelect = document.getElementById('adPlacement');
@@ -782,49 +768,17 @@
                 }
             }
             
-            // 生成代码
+            // 生成代码（修复字符串拼接）
             const encodedPlacement = encodeURIComponent(placementId);
             const code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"><' + '/script>';
             
             // 设置弹窗内容
-            successPlacementEl.textContent = placementName;
-            successAdCodeEl.value = code;
-            
-            // 显示弹窗
-            successModalEl.style.display = 'flex';
+            placementNameEl.textContent = placementName;
+            codeEl.value = code;
+            modal.style.display = 'flex';
         }
 
-        // 关闭弹窗
-        function closeModal(modalId) {
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.style.display = 'none';
-                // 重置内容
-                if (modalId === 'successModal') {
-                    successPlacementEl.textContent = '';
-                    successAdCodeEl.value = '';
-                }
-            }
-        }
-
-        // -------------------------- 工具函数 --------------------------
-        // HTML转义（防止XSS和显示乱码）
-        function escapeHtml(str) {
-            if (typeof str !== 'string') return '';
-            const entities = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#39;',
-                '/': '&#x2F;'
-            };
-            return str.replace(/[&<>"'\/]/g, function(char) {
-                return entities[char] || char;
-            });
-        }
-
-        // 全局函数声明（供HTML中onclick调用）
+        // 确保脚本最后有正确的闭合
         window.deletePlacement = deletePlacement;
         window.deleteAd = deleteAd;
     </script>
