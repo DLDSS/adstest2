@@ -33,7 +33,7 @@
         textarea.code { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; font-family: monospace; font-size: 13px; resize: none; min-height: 80px; }
         .callout { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 15px; margin: 10px 0; border-radius: 0 4px 4px 0; }
         .worker-url-group { background: #f0f9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
-        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; display: none; }
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 100; }
         .modal.active { display: flex; }
         .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
@@ -201,6 +201,23 @@
     <script>
         // 全局变量初始化
         let codeEl, resultEl, successPlacementEl, successAdCodeEl, successModalEl;
+
+        // -------------------------- 核心工具函数（最先定义，确保所有地方可调用） --------------------------
+        // HTML转义函数（防止XSS和显示乱码）
+        function escapeHtml(str) {
+            if (typeof str !== 'string') return '';
+            const entities = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+                '/': '&#x2F;'
+            };
+            return str.replace(/[&<>"'\/]/g, function(char) {
+                return entities[char] || char;
+            });
+        }
 
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -693,33 +710,19 @@
             }
         }
 
-                // 生成广告调用代码（完全修复版）
+        // 生成广告调用代码
         function generateAdCode() {
-            // 基础校验
             const workerUrl = getWorkerUrl();
-            if (!workerUrl) {
-                alert('请先设置Worker地址');
-                return;
-            }
+            if (!workerUrl || !codeEl || !resultEl) return;
             
-            // 获取DOM元素
             const placementSelect = document.getElementById('codePlacement');
-            const codeResult = document.getElementById('codeResult');
-            const adCodeText = document.getElementById('adCodeText');
-            
-            if (!placementSelect || !codeResult || !adCodeText) {
-                console.error('缺少必要的DOM元素');
-                return;
-            }
-            
-            // 获取选中值
             const placementId = placementSelect.value;
             if (!placementId) {
-                codeResult.classList.add('hidden');
+                resultEl.classList.add('hidden');
                 return;
             }
             
-            // 确定代码类型
+            // 获取选中的代码类型
             let codeType = 'script';
             const radioButtons = document.getElementsByName('codeType');
             for (let i = 0; i < radioButtons.length; i++) {
@@ -729,34 +732,61 @@
                 }
             }
             
-            // 编码参数
+            // 生成代码
             const encodedPlacement = encodeURIComponent(placementId);
             let code = '';
             
-            // 关键修复：正确的字符串拼接，不使用任何模板语法
             if (codeType === 'script') {
-                // 脚本调用代码 - 完全正确的字符串拼接
                 code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"><' + '/script>';
             } else {
-                // iframe调用代码 - 完全正确的字符串拼接
                 code = '<iframe src="' + workerUrl + '/ad/show?placement=' + encodedPlacement + '&format=html" width="100%" height="auto" frameborder="0" scrolling="no"></iframe>';
             }
             
-            // 设置代码到文本框
-            adCodeText.value = code;
-            codeResult.classList.remove('hidden');
+            codeEl.value = code;
+            resultEl.classList.remove('hidden');
         }
 
-        // 显示添加成功弹窗（修复版）
+        // 复制广告代码
+        function copyAdCode(elementId) {
+            const codeEl = document.getElementById(elementId);
+            if (!codeEl) {
+                alert('复制失败：未找到代码容器');
+                return;
+            }
+            
+            try {
+                codeEl.select();
+                // 兼容现代浏览器
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(codeEl.value).then(function() {
+                        alert('代码已复制到剪贴板');
+                    }).catch(function(err) {
+                        console.error('剪贴板API失败:', err);
+                        fallbackCopy(codeEl);
+                    });
+                } else {
+                    fallbackCopy(codeEl);
+                }
+            } catch (err) {
+                alert('复制失败: ' + err.message);
+            }
+        }
+
+        // 复制功能降级处理
+        function fallbackCopy(element) {
+            try {
+                const successful = document.execCommand('copy');
+                alert(successful ? '代码已复制到剪贴板' : '复制失败，请手动复制');
+            } catch (err) {
+                alert('复制失败，请手动复制');
+            }
+        }
+
+        // -------------------------- 弹窗功能 --------------------------
+        // 显示添加成功弹窗
         function showSuccessModal(placementId) {
             const workerUrl = getWorkerUrl();
-            if (!workerUrl || !placementId) return;
-            
-            // 获取弹窗元素
-            const modal = document.getElementById('successModal');
-            const placementNameEl = document.getElementById('successPlacement');
-            const codeEl = document.getElementById('successAdCode');
-            if (!modal || !placementNameEl || !codeEl) return;
+            if (!workerUrl || !placementId || !successModalEl) return;
             
             // 获取广告位名称
             const placementSelect = document.getElementById('adPlacement');
@@ -768,17 +798,32 @@
                 }
             }
             
-            // 生成代码（修复字符串拼接）
+            // 生成代码
             const encodedPlacement = encodeURIComponent(placementId);
             const code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"><' + '/script>';
             
             // 设置弹窗内容
-            placementNameEl.textContent = placementName;
-            codeEl.value = code;
-            modal.style.display = 'flex';
+            successPlacementEl.textContent = placementName;
+            successAdCodeEl.value = code;
+            
+            // 显示弹窗
+            successModalEl.style.display = 'flex';
         }
 
-        // 确保脚本最后有正确的闭合
+        // 关闭弹窗
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                // 重置内容
+                if (modalId === 'successModal') {
+                    successPlacementEl.textContent = '';
+                    successAdCodeEl.value = '';
+                }
+            }
+        }
+
+        // 全局函数声明（供HTML中onclick调用）
         window.deletePlacement = deletePlacement;
         window.deleteAd = deleteAd;
     </script>
