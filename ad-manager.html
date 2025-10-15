@@ -32,6 +32,7 @@
         .code-title { font-weight: bold; margin-bottom: 5px; color: #374151; }
         textarea.code { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px; background: #fff; font-family: monospace; font-size: 13px; resize: none; min-height: 80px; }
         .callout { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 10px 15px; margin: 10px 0; border-radius: 0 4px 4px 0; }
+        .worker-url-group { background: #f0f9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
         .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 90%; max-width: 600px; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
@@ -41,8 +42,13 @@
 </head>
 <body>
     <h1>Cloudflare Worker 广告管理平台</h1>
-    <div class="alert alert-info">
-        系统已自动识别当前域名：<span id="currentDomain"></span>
+
+    <!-- Worker 地址配置 -->
+    <div class="worker-url-group">
+        <label>Worker 基础地址（例如：https://xxx.cloudflareworkers.com）：</label>
+        <input type="text" id="workerBaseUrl" placeholder="https://你的Worker域名" value="">
+        <button class="btn-primary" onclick="saveWorkerUrl()">保存地址</button>
+        <div id="urlStatus" class="alert alert-info hidden">地址已保存，可开始使用系统功能</div>
     </div>
 
     <!-- 标签页切换 -->
@@ -79,7 +85,7 @@
 
         <!-- 广告位列表 -->
         <div class="list-container" id="placementList">
-            <div class="alert">加载中...</div>
+            <div class="alert">请先填写并保存Worker地址</div>
         </div>
     </div>
 
@@ -115,7 +121,7 @@
         <div class="form-group">
             <label>关联广告位（需先创建并启用）：</label>
             <select id="adPlacement">
-                <option value="">加载中...</option>
+                <option value="">请先保存Worker地址</option>
             </select>
         </div>
         <div class="form-group">
@@ -129,7 +135,7 @@
 
         <!-- 广告列表 -->
         <div class="list-container" id="adList">
-            <div class="alert">加载中...</div>
+            <div class="alert">请先填写并保存Worker地址</div>
         </div>
     </div>
 
@@ -139,7 +145,7 @@
         <div class="form-group">
             <label>选择广告位：</label>
             <select id="codePlacement" onchange="generateAdCode()">
-                <option value="">请选择广告位</option>
+                <option value="">请先保存Worker地址</option>
             </select>
         </div>
         <div class="form-group">
@@ -192,16 +198,46 @@
     </div>
 
     <script>
-        // 自动获取当前域名（无需手动填写）
-        const currentDomain = window.location.origin;
-        document.getElementById('currentDomain').textContent = currentDomain;
-
-        // 页面加载初始化
-        window.onload = function() {
+        // 存储和获取Worker地址
+        function saveWorkerUrl() {
+            const url = document.getElementById('workerBaseUrl').value.trim();
+            if (!url) {
+                alert('请输入有效的Worker地址！');
+                return;
+            }
+            // 验证URL格式
+            try {
+                new URL(url);
+            } catch (e) {
+                alert('请输入有效的URL（如：https://xxx.cloudflareworkers.com）');
+                return;
+            }
+            localStorage.setItem('workerBaseUrl', url);
+            document.getElementById('urlStatus').classList.remove('hidden');
+            // 刷新所有列表
             loadPlacementList();
             loadAdPlacementOptions();
             loadAdList();
-            showAdTypeTip(); // 显示初始广告类型提示
+            loadCodePlacementOptions();
+        }
+
+        function getWorkerUrl() {
+            return localStorage.getItem('workerBaseUrl') || '';
+        }
+
+        // 页面加载时填充保存的地址
+        window.onload = function() {
+            const savedUrl = getWorkerUrl();
+            if (savedUrl) {
+                document.getElementById('workerBaseUrl').value = savedUrl;
+                document.getElementById('urlStatus').classList.remove('hidden');
+                // 加载数据
+                loadPlacementList();
+                loadAdPlacementOptions();
+                loadAdList();
+                loadCodePlacementOptions();
+            }
+            showAdTypeTip();
         };
 
         // 标签页切换
@@ -213,11 +249,6 @@
             // 切换内容显示
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            
-            // 如果切换到代码页，刷新广告位选项
-            if (tabId === 'code-tab') {
-                loadCodePlacementOptions();
-            }
         }
 
         // 显示广告类型提示
@@ -242,9 +273,14 @@
         // -------------------------- 广告位相关功能 --------------------------
         // 加载广告位列表
         async function loadPlacementList() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
             const listEl = document.getElementById('placementList');
+            listEl.innerHTML = '<div class="alert">加载中...</div>';
+            
             try {
-                const res = await fetch(`${currentDomain}/placement/list`);
+                const res = await fetch(`${workerUrl}/placement/list`);
                 const data = await res.json();
                 
                 if (!data.data || data.data.length === 0) {
@@ -276,6 +312,12 @@
 
         // 新增广告位
         async function addPlacement() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
             const placement = {
                 id: document.getElementById('placementId').value.trim(),
                 name: document.getElementById('placementName').value.trim(),
@@ -298,7 +340,7 @@
             }
             
             try {
-                const res = await fetch(`${currentDomain}/placement/add`, {
+                const res = await fetch(`${workerUrl}/placement/add`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(placement)
@@ -325,12 +367,18 @@
 
         // 删除广告位
         async function deletePlacement(placementId) {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
             if (!confirm(`确定要删除广告位「${placementId}」吗？删除后关联的广告也将无法显示！`)) {
                 return;
             }
             
             try {
-                const res = await fetch(`${currentDomain}/placement/delete?placementId=${placementId}`, {
+                const res = await fetch(`${workerUrl}/placement/delete?placementId=${placementId}`, {
                     method: 'DELETE'
                 });
                 const data = await res.json();
@@ -353,11 +401,14 @@
         // -------------------------- 广告相关功能 --------------------------
         // 加载广告的广告位选项
         async function loadAdPlacementOptions() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
             const selectEl = document.getElementById('adPlacement');
             selectEl.innerHTML = '<option value="">加载中...</option>';
             
             try {
-                const res = await fetch(`${currentDomain}/placement/list`);
+                const res = await fetch(`${workerUrl}/placement/list`);
                 const data = await res.json();
                 
                 if (!data.data || data.data.length === 0) {
@@ -384,9 +435,14 @@
 
         // 加载广告列表
         async function loadAdList() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
             const listEl = document.getElementById('adList');
+            listEl.innerHTML = '<div class="alert">加载中...</div>';
+            
             try {
-                const res = await fetch(`${currentDomain}/ad/list`);
+                const res = await fetch(`${workerUrl}/ad/list`);
                 const data = await res.json();
                 
                 if (!data.data || data.data.length === 0) {
@@ -422,11 +478,17 @@
 
         // 新增广告
         async function addAd() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
             const ad = {
                 name: document.getElementById('adName').value.trim(),
                 type: document.getElementById('adType').value,
                 content: document.getElementById('adContent').value.trim(),
-                placement: document.getElementById('adPlacement').value, // 关键：与后端字段一致
+                placement: document.getElementById('adPlacement').value, // 与后端字段匹配
                 status: document.getElementById('adStatus').value
             };
             
@@ -451,7 +513,7 @@
             }
             
             try {
-                const res = await fetch(`${currentDomain}/ad/add`, {
+                const res = await fetch(`${workerUrl}/ad/add`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(ad)
@@ -476,12 +538,18 @@
 
         // 删除广告
         async function deleteAd(adId) {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
             if (!confirm(`确定要删除该广告吗？`)) {
                 return;
             }
             
             try {
-                const res = await fetch(`${currentDomain}/ad/delete?id=${adId}`, {
+                const res = await fetch(`${workerUrl}/ad/delete?id=${adId}`, {
                     method: 'DELETE'
                 });
                 const data = await res.json();
@@ -510,11 +578,14 @@
         // -------------------------- 广告调用代码功能 --------------------------
         // 加载代码页的广告位选项
         async function loadCodePlacementOptions() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
             const selectEl = document.getElementById('codePlacement');
             selectEl.innerHTML = '<option value="">加载中...</option>';
             
             try {
-                const res = await fetch(`${currentDomain}/placement/list`);
+                const res = await fetch(`${workerUrl}/placement/list`);
                 const data = await res.json();
                 
                 if (!data.data || data.data.length === 0) {
@@ -533,8 +604,11 @@
             }
         }
 
-        // 生成广告调用代码
+              // 生成广告调用代码（修复模板字符串问题）
         function generateAdCode() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
             const placementId = document.getElementById('codePlacement').value;
             const codeType = document.querySelector('input[name="codeType"]:checked').value;
             const codeEl = document.getElementById('adCodeText');
@@ -545,23 +619,23 @@
                 return;
             }
             
-            // 生成对应类型的代码
+            // 修复：用普通字符串拼接替代模板字符串，避免解析错误
             let code = '';
             const encodedPlacement = encodeURIComponent(placementId);
             
             if (codeType === 'script') {
-                // 脚本调用代码
-                code = `<script src="${currentDomain}/ad/embed?placement=${encodedPlacement}"></script>`;
+                // 脚本调用代码（字符串拼接）
+                code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"></script>';
             } else {
-                // iframe调用代码
-                code = `<iframe src="${currentDomain}/ad/show?placement=${encodedPlacement}&format=html" width="100%" height="auto" frameborder="0" scrolling="no"></iframe>`;
+                // iframe调用代码（字符串拼接）
+                code = '<iframe src="' + workerUrl + '/ad/show?placement=' + encodedPlacement + '&format=html" width="100%" height="auto" frameborder="0" scrolling="no"></iframe>';
             }
             
             codeEl.value = code;
             resultEl.classList.remove('hidden');
         }
 
-        // 复制广告代码
+        // 复制广告代码（保持不变，功能正常）
         function copyAdCode(elementId = 'adCodeText') {
             const codeEl = document.getElementById(elementId);
             codeEl.select();
@@ -569,25 +643,30 @@
             alert('代码已复制到剪贴板！');
         }
 
-        // -------------------------- 弹窗功能 --------------------------
+        // -------------------------- 弹窗功能（修复模板字符串） --------------------------
         // 显示添加成功弹窗
         function showSuccessModal(placementId) {
-            const placementName = document.querySelector(`#adPlacement option[value="${placementId}"]`).text;
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
+            const placementOption = document.querySelector('#adPlacement option[value="' + placementId + '"]');
+            const placementName = placementOption ? placementOption.text : placementId;
             const encodedPlacement = encodeURIComponent(placementId);
-            // 生成脚本调用代码（默认推荐）
-            const code = `<script src="${currentDomain}/ad/embed?placement=${encodedPlacement}"></script>`;
+            
+            // 修复：用字符串拼接生成代码，避免模板字符串解析问题
+            const code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"></script>';
             
             document.getElementById('successPlacement').textContent = placementName;
             document.getElementById('successAdCode').value = code;
             document.getElementById('successModal').classList.remove('hidden');
         }
 
-        // 关闭弹窗
+        // 关闭弹窗（保持不变，功能正常）
         function closeModal(modalId) {
             document.getElementById(modalId).classList.add('hidden');
         }
 
-        // -------------------------- 工具函数 --------------------------
+        // -------------------------- 工具函数（保持不变，功能正常） --------------------------
         // HTML转义（防止XSS和显示乱码）
         function escapeHtml(str) {
             if (!str) return '';
