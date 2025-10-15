@@ -603,71 +603,136 @@
                 selectEl.innerHTML = `<option value="">加载失败：${err.message}</option>`;
             }
         }
+        // -------------------------- 广告调用代码功能（完整修复） --------------------------
+        // 1. 先声明所有需要的变量（提前定义，避免未定义错误）
+        let codeEl = null;
+        let resultEl = null;
+        let successPlacementEl = null;
+        let successAdCodeEl = null;
+        let successModalEl = null;
 
-              // 生成广告调用代码（修复模板字符串问题）
+        // 页面加载时初始化DOM元素（确保DOM加载完成后再获取元素）
+        window.onload = function() {
+            // 初始化DOM元素引用
+            codeEl = document.getElementById('adCodeText');
+            resultEl = document.getElementById('codeResult');
+            successPlacementEl = document.getElementById('successPlacement');
+            successAdCodeEl = document.getElementById('successAdCode');
+            successModalEl = document.getElementById('successModal');
+
+            // 其他初始化逻辑...
+            const savedUrl = getWorkerUrl();
+            if (savedUrl) {
+                document.getElementById('workerBaseUrl').value = savedUrl;
+                document.getElementById('urlStatus').classList.remove('hidden');
+                loadPlacementList();
+                loadAdPlacementOptions();
+                loadAdList();
+                loadCodePlacementOptions();
+            }
+            showAdTypeTip();
+        };
+
+        // 2. 生成广告调用代码（完全修复，确保DOM元素已初始化）
         function generateAdCode() {
             const workerUrl = getWorkerUrl();
-            if (!workerUrl) return;
+            // 双重校验：确保Worker地址和DOM元素都已准备好
+            if (!workerUrl || !codeEl || !resultEl) return;
             
-            const placementId = document.getElementById('codePlacement').value;
-            const codeType = document.querySelector('input[name="codeType"]:checked').value;
-            const codeEl = document.getElementById('adCodeText');
-            const resultEl = document.getElementById('codeResult');
+            const placementSelect = document.getElementById('codePlacement');
+            const placementId = placementSelect.value;
+            const codeTypeRadios = document.getElementsByName('codeType');
+            let codeType = 'script'; // 默认脚本调用
+
+            // 遍历单选按钮获取选中值（避免querySelector可能的解析问题）
+            for (let i = 0; i < codeTypeRadios.length; i++) {
+                if (codeTypeRadios[i].checked) {
+                    codeType = codeTypeRadios[i].value;
+                    break;
+                }
+            }
             
             if (!placementId) {
                 resultEl.classList.add('hidden');
                 return;
             }
             
-            // 修复：用普通字符串拼接替代模板字符串，避免解析错误
+            // 字符串拼接生成代码（无模板字符串，无解析问题）
             let code = '';
             const encodedPlacement = encodeURIComponent(placementId);
             
             if (codeType === 'script') {
-                // 脚本调用代码（字符串拼接）
                 code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"></script>';
             } else {
-                // iframe调用代码（字符串拼接）
                 code = '<iframe src="' + workerUrl + '/ad/show?placement=' + encodedPlacement + '&format=html" width="100%" height="auto" frameborder="0" scrolling="no"></iframe>';
             }
             
-            codeEl.value = code;
-            resultEl.classList.remove('hidden');
+            // 确保元素存在再赋值（避免null报错）
+            if (codeEl) codeEl.value = code;
+            if (resultEl) resultEl.classList.remove('hidden');
         }
 
-        // 复制广告代码（保持不变，功能正常）
+        // 3. 复制广告代码（增加元素存在校验）
         function copyAdCode(elementId = 'adCodeText') {
             const codeEl = document.getElementById(elementId);
-            codeEl.select();
-            document.execCommand('copy');
-            alert('代码已复制到剪贴板！');
+            // 校验元素是否存在
+            if (!codeEl) {
+                alert('复制失败：代码容器未找到');
+                return;
+            }
+            try {
+                codeEl.select();
+                // 兼容现代浏览器（document.execCommand已废弃，补充新API）
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(codeEl.value).then(() => {
+                        alert('代码已复制到剪贴板！');
+                    }).catch(err => {
+                        // 降级使用execCommand
+                        document.execCommand('copy');
+                        alert('代码已复制到剪贴板！');
+                    });
+                } else {
+                    document.execCommand('copy');
+                    alert('代码已复制到剪贴板！');
+                }
+            } catch (err) {
+                alert('复制失败：' + err.message);
+            }
         }
 
-        // -------------------------- 弹窗功能（修复模板字符串） --------------------------
-        // 显示添加成功弹窗
+        // -------------------------- 弹窗功能（完全修复） --------------------------
+        // 显示添加成功弹窗（避免DOM查询解析问题）
         function showSuccessModal(placementId) {
             const workerUrl = getWorkerUrl();
-            if (!workerUrl) return;
+            // 三重校验：地址、元素都准备好
+            if (!workerUrl || !successPlacementEl || !successAdCodeEl || !successModalEl) return;
             
-            const placementOption = document.querySelector('#adPlacement option[value="' + placementId + '"]');
-            const placementName = placementOption ? placementOption.text : placementId;
+            // 用getElementById + 循环遍历替代querySelector（避免选择器解析问题）
+            const placementSelect = document.getElementById('adPlacement');
+            let placementName = placementId; // 默认用ID当名称
+            for (let i = 0; i < placementSelect.options.length; i++) {
+                if (placementSelect.options[i].value === placementId) {
+                    placementName = placementSelect.options[i].text;
+                    break;
+                }
+            }
+            
             const encodedPlacement = encodeURIComponent(placementId);
-            
-            // 修复：用字符串拼接生成代码，避免模板字符串解析问题
             const code = '<script src="' + workerUrl + '/ad/embed?placement=' + encodedPlacement + '"></script>';
             
-            document.getElementById('successPlacement').textContent = placementName;
-            document.getElementById('successAdCode').value = code;
-            document.getElementById('successModal').classList.remove('hidden');
+            // 赋值前确保元素存在
+            if (successPlacementEl) successPlacementEl.textContent = placementName;
+            if (successAdCodeEl) successAdCodeEl.value = code;
+            if (successModalEl) successModalEl.classList.remove('hidden');
         }
 
-        // 关闭弹窗（保持不变，功能正常）
+        // 关闭弹窗（增加元素存在校验）
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
+            const modalEl = document.getElementById(modalId);
+            if (modalEl) modalEl.classList.add('hidden');
         }
 
-        // -------------------------- 工具函数（保持不变，功能正常） --------------------------
-        // HTML转义（防止XSS和显示乱码）
+        // -------------------------- 工具函数（保持不变） --------------------------
         function escapeHtml(str) {
             if (!str) return '';
             return str
