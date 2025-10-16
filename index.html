@@ -5,31 +5,23 @@
 <meta name="google" value="notranslate">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
 <title>抖音直播间</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<!-- 修复CDN链接为国内可用版本 -->
+<script src="https://cdn.bootcdn.net/ajax/libs/tailwindcss/3.3.2/tailwind.min.js"></script>
 <link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/css/layui.css">
 <script src="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/layui.js"></script>
 <style type="text/css">
 @charset "utf-8";
-* {
+*{
     margin: 0; 
     padding: 0;
-    touch-action: auto;
-    box-sizing: border-box;
-}
-html, body {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
+    touch-action: pan-y;
 }
 .app{
     width: 100vw; 
     height: 100vh; 
-    position: fixed;
-    top: 0;
-    left: 0;
+    position: absolute;
+    margin: 0;
     overflow: hidden;
     background-color: #000;
 }
@@ -39,12 +31,68 @@ html, body {
     object-fit: cover;
     object-position: center center;
     z-index: 10;
+    background-color: #000;
 }
+
+/* 视频覆盖层 */
+#video-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 15;
+    background: transparent;
+    pointer-events: auto;
+}
+
+/* 播放按钮 */
+#play-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 70px;
+    height: 70px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 30px;
+    z-index: 16;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+#play-button.visible {
+    opacity: 1;
+}
+
+/* 声音控制按钮 */
+#volume-control {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    z-index: 20;
+    cursor: pointer;
+}
+
 video::-internal-media-controls-download-button { display: none; }
 video::-webkit-media-controls-enclosure { overflow: hidden; }
 video::-webkit-media-controls-panel { width: calc(100% + 30px); }
 
-/* 评论区样式 */
+/* 评论区样式 - 文字变小变细 */
 .comments-container {
     position: absolute;
     bottom: 130px;
@@ -67,14 +115,15 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
 .comment {
     width: fit-content;
     max-width: 90%;
-    padding: 8px 14px;
-    margin-bottom: 6px;
+    padding: 6px 12px;
+    margin-bottom: 5px;
     margin-left: 5px;
     border-radius: 20px;
     background-color: rgba(0, 0, 0, 0.3);
     color: white;
     text-align: left;
-    font-size: 14px;
+    font-size: 12px; /* 文字变小 */
+    font-weight: 300; /* 文字变细 */
     line-height: 1.4;
     opacity: 0;
     transform: translateY(15px);
@@ -94,19 +143,21 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     transition: opacity 0.8s ease-out, transform 0.8s ease-out;
 }
 
+/* 用户名调整为淡黄色 */
 .comment .username {
-    font-weight: 500;
+    font-weight: 400;
     margin-right: 8px;
+    color: #FFFFCC; /* 淡黄色 */
 }
 
 /* 等级图标样式 */
 .level-icon {
     display: inline-block;
     margin-right: 5px;
-    font-size: 12px;
+    font-size: 11px;
 }
 
-/* 广告栏样式 */
+/* 广告栏样式 - 修复夸克浏览器不显示问题 */
 .ad-banner {
     position: absolute;
     bottom: 60px;
@@ -124,6 +175,8 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     border: 1px solid rgba(255, 255, 255, 0.2);
     pointer-events: auto !important;
     box-sizing: border-box;
+    display: block !important; /* 强制显示 */
+    opacity: 1 !important; /* 确保不透明 */
 }
 
 /* 广告容器 - 直接嵌入无需JS */
@@ -163,7 +216,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     justify-content: center;
 }
 
-/* 修复1：确保手机Chrome底部评论框可见（增强安全区域适配） */
+/* 底部互动区 */
 .interaction-bar {
     position: absolute;
     bottom: 0;
@@ -176,9 +229,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     align-items: center;
     padding: 0 15px;
     box-sizing: border-box;
-    /* 强制适配手机底部导航栏，确保不被遮挡 */
-    padding-bottom: max(5px, constant(safe-area-inset-bottom));
-    padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
 .danmaku-input {
@@ -236,19 +286,20 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
 </style>
 </head>
 <body>
-    <div class="app" ontouchmove="return false;">
-        <!-- 视频播放器：移除muted属性，确保点击可播放 -->
-        <video id="player" 
-               src="https://tucdn.wpon.cn/api-girl/videos/76.mp4" 
-               autoplay preload 
-               webkit-playsinline='true' playsinline='true' 
-               x5-video-player-type='h5' 
-               x5-video-player-fullscreen='true' 
-               x5-video-ignore-metadata='true' 
-               poster="https://i.imgs.ovh/2025/10/16/7JjHvL.webp">
-            <!-- 备用视频源 -->
-            <source src="https://tucdn.wpon.cn/api-girl/videos/68.mp4" type="video/mp4">
-        </video>
+    <div class="app">
+        <!-- 视频播放器 - 默认静音 -->
+        <video id="player" src="https://tucdn.wpon.cn/api-girl/videos/76.mp4" autoplay preload muted webkit-playsinline='true' playsinline='true' x5-video-player-type='h5-page' x5-video-player-fullscreen='false' poster="https://gd-hbimg.huaban.com/dd5c3c7f9ab5aa97ff3b84852f834f47873bd2a5fee0-tBa7jJ_fw658webp"></video>
+        
+        <!-- 视频覆盖层和播放按钮 -->
+        <div id="video-overlay"></div>
+        <div id="play-button" class="visible">
+            <i class="fa fa-play"></i>
+        </div>
+        
+        <!-- 右上角声音控制按钮 -->
+        <div id="volume-control">
+            <i class="fa fa-volume-off"></i>
+        </div>
         
         <!-- 滑动提示 -->
         <div class="swipe-hint">
@@ -257,7 +308,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         
         <!-- 视频信息提示 -->
         <div class="video-info">
-            <i class="fa fa-info-circle"></i> 点击屏幕播放/暂停视频
+            <i class="fa fa-info-circle"></i> 视频加载中，若无法播放请刷新页面
         </div>
         
         <!-- 评论区 -->
@@ -284,49 +335,252 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script>
     $(document).ready(function(){
+        // 初始化视频播放器
+        class VideoPlayer {
+            constructor() {
+                this.player = document.getElementById('player');
+                this.overlay = document.getElementById('video-overlay');
+                this.playButton = document.getElementById('play-button');
+                this.volumeControl = document.getElementById('volume-control');
+                this.currentVideoIndex = 0;
+                this.startX = 0;
+                this.endX = 0;
+                this.swipeThreshold = 50;
+                this.isPlaying = false;
+                this.isMuted = true; // 默认静音
+                
+                this.initVideoEvents();
+                this.setupOverlayEvents();
+                this.setupPlayButton();
+                this.setupVolumeControl();
+            }
+            
+            setupOverlayEvents() {
+                // 覆盖层点击事件
+                this.overlay.addEventListener('click', () => {
+                    this.togglePlayPause();
+                });
+                
+                // 覆盖层触摸事件（用于滑动切换）
+                this.overlay.addEventListener('touchstart', (e) => {
+                    this.startX = e.touches[0].clientX;
+                });
+                
+                this.overlay.addEventListener('touchend', (e) => {
+                    this.endX = e.changedTouches[0].clientX;
+                    this.handleSwipe();
+                });
+            }
+            
+            setupPlayButton() {
+                // 播放按钮点击事件
+                this.playButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.togglePlayPause();
+                });
+            }
+            
+            // 声音控制按钮设置
+            setupVolumeControl() {
+                this.volumeControl.addEventListener('click', () => {
+                    this.toggleMute();
+                });
+            }
+            
+            // 切换静音状态
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                this.player.muted = this.isMuted;
+                
+                // 更新图标
+                if (this.isMuted) {
+                    this.volumeControl.innerHTML = '<i class="fa fa-volume-off"></i>';
+                } else {
+                    this.volumeControl.innerHTML = '<i class="fa fa-volume-up"></i>';
+                }
+            }
+            
+            togglePlayPause() {
+                if (this.player.paused) {
+                    this.player.play().then(() => {
+                        this.isPlaying = true;
+                        this.playButton.classList.remove('visible');
+                    }).catch(error => {
+                        console.error('播放失败:', error);
+                        layer.msg('播放失败，请点击重试');
+                    });
+                } else {
+                    this.player.pause();
+                    this.isPlaying = false;
+                    this.playButton.classList.add('visible');
+                }
+            }
+            
+            handleSwipe() {
+                const diffX = this.startX - this.endX;
+                
+                if (Math.abs(diffX) > this.swipeThreshold) {
+                    if (diffX > 0) {
+                        this.switchToNext();
+                    } else {
+                        this.switchToPrev();
+                    }
+                }
+            }
+            
+            initVideoEvents() {
+                // 视频事件监听
+                this.player.addEventListener('play', () => {
+                    this.isPlaying = true;
+                    this.playButton.classList.remove('visible');
+                });
+                
+                this.player.addEventListener('pause', () => {
+                    this.isPlaying = false;
+                    this.playButton.classList.add('visible');
+                });
+                
+                this.player.addEventListener('waiting', () => {
+                    layer.msg('视频缓冲中...');
+                });
+                
+                this.player.addEventListener('canplay', () => {
+                    layer.msg('视频可以播放了');
+                });
+                
+                this.player.addEventListener('error', (e) => {
+                    console.error('视频加载错误:', e);
+                    layer.msg('视频加载失败，正在尝试切换...');
+                    setTimeout(() => this.switchToNext(), 1000);
+                });
+                
+                // 处理自动播放策略
+                this.setupAutoplayHandling();
+            }
+            
+            setupAutoplayHandling() {
+                // 尝试自动播放（保持静音）
+                this.player.play().then(() => {
+                    this.isPlaying = true;
+                    this.playButton.classList.remove('visible');
+                }).catch(error => {
+                    console.log('自动播放被阻止:', error);
+                    this.isPlaying = false;
+                    this.playButton.classList.add('visible');
+                    layer.msg('点击播放按钮开始播放');
+                });
+                
+                // 用户交互后恢复播放
+                const playVideo = () => {
+                    if (!this.isPlaying) {
+                        this.player.play().then(() => {
+                            this.isPlaying = true;
+                            this.playButton.classList.remove('visible');
+                        }).catch(() => {});
+                    }
+                };
+                
+                document.addEventListener('click', playVideo);
+                document.addEventListener('touchstart', playVideo);
+            }
+            
+            async switchToNext() {
+                // 查找下一个未播放的视频
+                let nextIndex = (this.currentVideoIndex + 1) % vdurl_arr.length;
+                while (vdurlold.includes(vdurl_arr[nextIndex]) && vdurl_arr.length > 1) {
+                    nextIndex = (nextIndex + 1) % vdurl_arr.length;
+                }
+                await this.changeVideo(nextIndex);
+            }
+            
+            async switchToPrev() {
+                // 查找上一个未播放的视频
+                let prevIndex = (this.currentVideoIndex - 1 + vdurl_arr.length) % vdurl_arr.length;
+                while (vdurlold.includes(vdurl_arr[prevIndex]) && vdurl_arr.length > 1) {
+                    prevIndex = (prevIndex - 1 + vdurl_arr.length) % vdurl_arr.length;
+                }
+                await this.changeVideo(prevIndex);
+            }
+            
+            async changeVideo(index) {
+                this.player.pause();
+                layer.msg('切换视频中...');
+                
+                // 短暂显示加载状态
+                this.playButton.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+                this.playButton.classList.add('visible');
+                
+                // 切换视频源
+                this.currentVideoIndex = index;
+                this.player.src = vdurl_arr[index];
+                
+                try {
+                    await this.player.load();
+                    // 确保保持静音状态
+                    this.player.muted = this.isMuted;
+                    
+                    // 短暂延迟后尝试播放
+                    setTimeout(() => {
+                        this.player.play().then(() => {
+                            this.isPlaying = true;
+                            this.playButton.classList.remove('visible');
+                            layer.msg('视频切换成功');
+                            
+                            // 记录已播放视频
+                            if (!vdurlold.includes(vdurl_arr[index])) {
+                                vdurlold.push(vdurl_arr[index]);
+                            }
+                        }).catch(error => {
+                            console.log('切换后播放失败:', error);
+                            this.isPlaying = false;
+                            this.playButton.innerHTML = '<i class="fa fa-play"></i>';
+                            this.playButton.classList.add('visible');
+                        });
+                    }, 300);
+                    
+                    // 清空并重新添加评论
+                    commentsWrapper.innerHTML = '';
+                    for (let i = 0; i < 4; i++) {
+                        setTimeout(() => addComment(), i * 400);
+                    }
+                } catch (error) {
+                    console.error('视频切换失败:', error);
+                    layer.msg('视频切换失败，请重试');
+                    this.playButton.innerHTML = '<i class="fa fa-play"></i>';
+                }
+            }
+        }
+
+        // 原始视频逻辑
         layer.msg('加载环境中，请稍候！');
-        let auto = false; 
-        let textstf = false;
-        let gi = 1;
-        let gi_max = 1;
+        let auto = false; // 循环播放模式（false=不循环，切换视频）
         let vdnum = 0;
         const url = "./get-random-url"; // 视频接口地址
-        let vdurlold = new Array("https://tucdn.wpon.cn/api-girl/videos/76.mp4");
-        let vdurl_arr = new Array(
+        let vdurlold = ["https://tucdn.wpon.cn/api-girl/videos/76.mp4"]; // 历史播放记录
+        let vdurl_arr = [
             "https://tucdn.wpon.cn/api-girl/videos/76.mp4",
             "https://tucdn.wpon.cn/api-girl/videos/68.mp4",
             "https://tucdn.wpon.cn/api-girl/videos/54.mp4",
             "https://tucdn.wpon.cn/api-girl/videos/42.mp4",
             "https://tucdn.wpon.cn/api-girl/videos/36.mp4"
-        );
+        ];
         
         let currentVideoIndex = 0;
-        let startX = 0;
-        let endX = 0;
-        const swipeThreshold = 50;
-        const commentsContainer = document.getElementById('commentsContainer');
-        const adBanner = document.getElementById('adBanner');
-        const player = document.getElementById('player');
+        let videoPlayer;
         
-        // 修复2：确保点击视频能播放/暂停（移除复杂逻辑，仅保留基础功能）
-        player.addEventListener('click', function() {
-            if (this.paused) {
-                this.play().catch(err => {
-                    // 仅在控制台输出错误，不影响用户点击
-                    console.log('播放失败:', err);
-                });
-            } else {
-                this.pause();
-            }
-        });
+        // 初始化视频播放器
+        videoPlayer = new VideoPlayer();
         
-        // 接口处理：保持原样
+        // 修复接口播放视频：使用真实API请求而非模拟数据
         function getRandomVideoFromApi() {
             return new Promise((resolve, reject) => {
+                // 真实API请求
                 $.get(url)
                     .done(function(videoUrl) {
                         if (videoUrl && videoUrl.trim()) {
+                            // 检查是否已播放过
                             if (vdurlold.includes(videoUrl.trim())) {
+                                // 如果已播放过，重新获取
                                 getRandomVideoFromApi().then(resolve).catch(reject);
                             } else {
                                 resolve(videoUrl.trim());
@@ -341,88 +595,34 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
             });
         }
         
-        // 视频播放逻辑：保持原样
-        player.addEventListener('ended', function() {
+        // 视频播放逻辑：补充接口调用
+        videoPlayer.player.addEventListener('ended', function() {
             if (auto) {
                 this.currentTime = 0;
                 this.play();
             } else {
+                // 先尝试从接口获取新视频，失败则用本地数组
                 getRandomVideoFromApi()
                     .then(newUrl => {
+                        // 接口获取成功：添加到数组并切换
                         vdurl_arr.push(newUrl);
                         currentVideoIndex = vdurl_arr.length - 1;
-                        changeVideo(currentVideoIndex);
+                        videoPlayer.changeVideo(currentVideoIndex);
                     })
                     .catch(err => {
                         console.log('接口获取视频失败，使用本地数组', err);
+                        // 接口失败：使用本地数组切换
                         let nextIndex = (currentVideoIndex + 1) % vdurl_arr.length;
                         while (vdurlold.includes(vdurl_arr[nextIndex]) && vdurl_arr.length > 1) {
                             nextIndex = (nextIndex + 1) % vdurl_arr.length;
                         }
                         currentVideoIndex = nextIndex;
-                        changeVideo(currentVideoIndex);
+                        videoPlayer.changeVideo(currentVideoIndex);
                     });
             }
         });
         
-        // 滑动切换视频逻辑：保持原样
-        document.addEventListener('touchstart', function(e) {
-            startX = e.touches[0].clientX;
-        }, false);
-        
-        document.addEventListener('touchend', function(e) {
-            endX = e.changedTouches[0].clientX;
-            handleSwipe();
-        }, false);
-        
-        function handleSwipe() {
-            const diffX = startX - endX;
-            if (diffX < -swipeThreshold) { // 向右滑动（上一个）
-                currentVideoIndex = (currentVideoIndex - 1 + vdurl_arr.length) % vdurl_arr.length;
-                changeVideo(currentVideoIndex);
-            } else if (diffX > swipeThreshold) { // 向左滑动（下一个）
-                getRandomVideoFromApi()
-                    .then(newUrl => {
-                        vdurl_arr.push(newUrl);
-                        currentVideoIndex = vdurl_arr.length - 1;
-                        changeVideo(currentVideoIndex);
-                    })
-                    .catch(err => {
-                        console.log('接口获取视频失败，使用本地数组', err);
-                        let nextIndex = (currentVideoIndex + 1) % vdurl_arr.length;
-                        while (vdurlold.includes(vdurl_arr[nextIndex]) && vdurl_arr.length > 1) {
-                            nextIndex = (nextIndex + 1) % vdurl_arr.length;
-                        }
-                        currentVideoIndex = nextIndex;
-                        changeVideo(currentVideoIndex);
-                    });
-            }
-        }
-        
-        // 切换视频函数：确保播放逻辑可靠
-        function changeVideo(index) {
-            player.pause();
-            layer.msg('切换视频中...');
-            document.querySelector('.video-info').innerHTML = '<i class="fa fa-spinner fa-spin"></i> 切换视频中...';
-            
-            vdnum = index;
-            if (vdurl_arr.length > 0 && index >= 0 && index < vdurl_arr.length) {
-                const videoUrl = vdurl_arr[index];
-                player.src = videoUrl;
-                
-                if (!vdurlold.includes(videoUrl)) {
-                    vdurlold.push(videoUrl);
-                }
-                
-                // 简化播放逻辑，确保切换后可点击播放
-                player.load();
-                setTimeout(() => {
-                    document.querySelector('.video-info').innerHTML = '<i class="fa fa-info-circle"></i> 点击屏幕播放/暂停视频';
-                }, 1000);
-            }
-        }
-        
-        // 评论区、弹幕发送等其他功能保持不变
+        // 评论区相关逻辑
         function generatePhoneNumber() {
             const prefix = ['130', '131', '132', '133', '134', '135', '136', '137', '138', '139', '150', '151', '152', '153', '155', '156', '157', '158', '159', '170', '171', '173', '176', '177', '180', '181', '182', '183', '184', '185', '186', '187', '188', '189'];
             const randomPrefix = prefix[Math.floor(Math.random() * prefix.length)];
@@ -567,9 +767,20 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         
         // 关闭广告
         document.getElementById('closeAd').addEventListener('click', function() {
-            adBanner.style.display = 'none';
-            commentsContainer.style.bottom = '60px';
+            document.getElementById('adBanner').style.display = 'none';
+            document.getElementById('commentsContainer').style.bottom = '60px';
         });
+
+        // 确保广告在夸克浏览器中显示
+        setTimeout(() => {
+            const adBanner = document.getElementById('adBanner');
+            if (adBanner.offsetHeight < 50) {
+                // 如果广告高度异常，尝试重新加载广告
+                const adScript = document.createElement('script');
+                adScript.src = 'https://adsc.144514.xyz/ad/embed?placement=banner-1';
+                document.querySelector('.ad-content').appendChild(adScript);
+            }
+        }, 1000);
     });
     </script>
 </body>
