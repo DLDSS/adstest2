@@ -19,6 +19,7 @@
         .btn-primary { background: #2563eb; color: #fff; }
         .btn-danger { background: #dc2626; color: #fff; }
         .btn-copy { background: #f3f4f6; color: #374151; margin-left: 10px; }
+        .btn-edit { background: #f59e0b; color: #fff; }
         .list-container { margin-top: 20px; }
         .list-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .list-item:last-child { border-bottom: none; }
@@ -39,6 +40,7 @@
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .modal-title { font-size: 18px; font-weight: bold; }
         .close-modal { background: none; border: none; font-size: 20px; cursor: pointer; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -97,7 +99,7 @@
         <div class="callout">
             <strong>注意：</strong>
             <ul style="margin-left: 20px; margin-top: 5px;">
-                <li>图片广告：填写图片完整URL（如https://xxx.com/ad.jpg）</li>
+                <li>图片广告：填写格式为"图片URL || 跳转链接"（如https://xxx.com/ad.jpg || https://example.com）</li>
                 <li>文本广告：填写广告文本（支持简单HTML标签如&lt;a&gt;）</li>
                 <li>HTML广告：填写完整HTML代码（需自行确保样式兼容）</li>
             </ul>
@@ -109,7 +111,7 @@
         <div class="form-group">
             <label>广告类型：</label>
             <select id="adType">
-                <option value="image">图片广告（输入图片URL）</option>
+                <option value="image">图片广告（输入图片URL和跳转链接）</option>
                 <option value="text">文本广告（输入文本内容）</option>
                 <option value="html">HTML广告（输入HTML代码）</option>
             </select>
@@ -198,6 +200,52 @@
         </div>
     </div>
 
+    <!-- 编辑广告弹窗 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">编辑广告</div>
+                <button class="close-modal" id="editModalCloseBtn">&times;</button>
+            </div>
+            <div>
+                <input type="hidden" id="editAdId">
+                <div class="form-group">
+                    <label>广告名称：</label>
+                    <input type="text" id="editAdName" placeholder="输入广告名称">
+                </div>
+                <div class="form-group">
+                    <label>广告类型：</label>
+                    <select id="editAdType">
+                        <option value="image">图片广告</option>
+                        <option value="text">文本广告</option>
+                        <option value="html">HTML广告</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>广告内容：</label>
+                    <textarea id="editAdContent" rows="4" placeholder="根据广告类型填写对应内容"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>关联广告位：</label>
+                    <select id="editAdPlacement">
+                        <option value="">请选择广告位</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>状态：</label>
+                    <select id="editAdStatus">
+                        <option value="active">启用</option>
+                        <option value="inactive">禁用</option>
+                    </select>
+                </div>
+                <div style="text-align: right;">
+                    <button class="btn-primary" id="saveEditBtn">保存修改</button>
+                    <button class="btn-danger" style="margin-left: 10px;" id="cancelEditBtn">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 全局变量初始化
         let codeEl, resultEl, successPlacementEl, successAdCodeEl, successModalEl;
@@ -229,6 +277,7 @@
             
             // 初始化弹窗状态（确保隐藏）
             successModalEl.style.display = 'none';
+            document.getElementById('editModal').style.display = 'none';
             
             // 加载保存的Worker地址
             const savedUrl = getWorkerUrl();
@@ -277,6 +326,9 @@
             // 广告类型切换提示
             document.getElementById('adType').addEventListener('change', showAdTypeTip);
             
+            // 编辑广告类型切换提示
+            document.getElementById('editAdType').addEventListener('change', showEditAdTypeTip);
+            
             // 代码类型切换
             document.querySelectorAll('input[name="codeType"]').forEach(radio => {
                 radio.addEventListener('change', generateAdCode);
@@ -305,10 +357,30 @@
                 closeModal('successModal');
             });
             
+            // 编辑弹窗关闭按钮
+            document.getElementById('editModalCloseBtn').addEventListener('click', function() {
+                closeModal('editModal');
+            });
+            
+            // 取消编辑按钮
+            document.getElementById('cancelEditBtn').addEventListener('click', function() {
+                closeModal('editModal');
+            });
+            
+            // 保存编辑按钮
+            document.getElementById('saveEditBtn').addEventListener('click', saveAdEdit);
+            
             // 点击弹窗背景关闭
             successModalEl.addEventListener('click', function(e) {
                 if (e.target === this) {
                     closeModal('successModal');
+                }
+            });
+            
+            // 点击编辑弹窗背景关闭
+            document.getElementById('editModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeModal('editModal');
                 }
             });
         }
@@ -332,6 +404,7 @@
             // 刷新所有列表
             loadPlacementList();
             loadAdPlacementOptions();
+            loadEditAdPlacementOptions();
             loadAdList();
             loadCodePlacementOptions();
         }
@@ -363,7 +436,26 @@
             
             switch(adType) {
                 case 'image':
-                    tipEl.innerHTML = '图片广告示例：https://example.com/ad-banner.jpg<br>建议尺寸：根据广告位设计（如300x250px）';
+                    tipEl.innerHTML = '图片广告示例：https://example.com/ad-banner.jpg || https://example.com/target<br>格式说明：图片URL || 跳转链接（使用双竖线分隔）';
+                    break;
+                case 'text':
+                    tipEl.innerHTML = '文本广告示例：<a href="https://example.com" target="_blank">点击查看优惠活动</a><br>支持&lt;a&gt;、&lt;strong&gt;等简单HTML标签';
+                    break;
+                case 'html':
+                    tipEl.innerHTML = 'HTML广告示例：<div style="padding:10px;background:#f5f5f5;"><a href="https://example.com">立即购买</a></div><br>需包含完整HTML结构，避免使用冲突样式名';
+                    break;
+            }
+        }
+
+        // 显示编辑广告类型提示
+        function showEditAdTypeTip() {
+            const adType = document.getElementById('editAdType').value;
+            const tipEl = document.getElementById('adTypeTip'); // 复用提示元素
+            tipEl.classList.remove('hidden');
+            
+            switch(adType) {
+                case 'image':
+                    tipEl.innerHTML = '图片广告示例：https://example.com/ad-banner.jpg || https://example.com/target<br>格式说明：图片URL || 跳转链接（使用双竖线分隔）';
                     break;
                 case 'text':
                     tipEl.innerHTML = '文本广告示例：<a href="https://example.com" target="_blank">点击查看优惠活动</a><br>支持&lt;a&gt;、&lt;strong&gt;等简单HTML标签';
@@ -460,6 +552,7 @@
                     // 刷新列表
                     loadPlacementList();
                     loadAdPlacementOptions();
+                    loadEditAdPlacementOptions();
                     loadCodePlacementOptions();
                 } else {
                     alert('添加失败：' + (data.error || '未知错误'));
@@ -492,6 +585,7 @@
                     // 刷新所有列表
                     loadPlacementList();
                     loadAdPlacementOptions();
+                    loadEditAdPlacementOptions();
                     loadCodePlacementOptions();
                     loadAdList();
                 } else {
@@ -538,6 +632,41 @@
             }
         }
 
+        // 加载编辑广告的广告位选项
+        async function loadEditAdPlacementOptions() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) return;
+            
+            const selectEl = document.getElementById('editAdPlacement');
+            selectEl.innerHTML = '<option value="">加载中...</option>';
+            
+            try {
+                const res = await fetch(workerUrl + '/placement/list');
+                const data = await res.json();
+                
+                if (!data.data || data.data.length === 0) {
+                    selectEl.innerHTML = '<option value="">暂无可用广告位</option>';
+                    return;
+                }
+                
+                // 只显示启用的广告位
+                const activePlacements = data.data.filter(p => p.status === 'active');
+                if (activePlacements.length === 0) {
+                    selectEl.innerHTML = '<option value="">暂无启用的广告位</option>';
+                    return;
+                }
+                
+                let html = '<option value="">请选择广告位</option>';
+                activePlacements.forEach(p => {
+                    html += '<option value="' + escapeHtml(p.id) + '">' + 
+                        escapeHtml(p.name) + '（ID：' + escapeHtml(p.id) + '）</option>';
+                });
+                selectEl.innerHTML = html;
+            } catch (err) {
+                selectEl.innerHTML = '<option value="">加载失败：' + err.message + '</option>';
+            }
+        }
+
         // 加载广告列表
         async function loadAdList() {
             const workerUrl = getWorkerUrl();
@@ -570,6 +699,7 @@
                         html += '展示量：' + (ad.impressions || 0) + ' | 点击量：' + (ad.clicks || 0);
                         html += '</div>';
                         html += '<div class="item-actions">';
+                        html += '<button class="btn-edit" onclick="editAd(\'' + escapeHtml(ad.id) + '\')">编辑</button>';
                         html += '<button class="btn-danger" onclick="deleteAd(\'' + escapeHtml(ad.id) + '\')">删除</button>';
                         html += '</div>';
                         html += '</div>';
@@ -578,6 +708,111 @@
                 listEl.innerHTML = html;
             } catch (err) {
                 listEl.innerHTML = '<div class="alert alert-error">加载失败：' + err.message + '</div>';
+            }
+        }
+
+        // 编辑广告 - 打开编辑弹窗
+        async function editAd(adId) {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
+            try {
+                // 获取广告详情
+                const ad = await getAdById(adId);
+                if (!ad) {
+                    alert('获取广告信息失败');
+                    return;
+                }
+                
+                // 填充表单
+                document.getElementById('editAdId').value = ad.id;
+                document.getElementById('editAdName').value = ad.name || '';
+                document.getElementById('editAdType').value = ad.type || 'image';
+                document.getElementById('editAdContent').value = ad.content || '';
+                document.getElementById('editAdStatus').value = ad.status || 'active';
+                
+                // 加载广告位选项并选中当前广告位
+                await loadEditAdPlacementOptions();
+                const placementSelect = document.getElementById('editAdPlacement');
+                for (let i = 0; i < placementSelect.options.length; i++) {
+                    if (placementSelect.options[i].value === ad.placement) {
+                        placementSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+                
+                // 显示编辑弹窗
+                document.getElementById('editModal').style.display = 'flex';
+                
+            } catch (err) {
+                alert('编辑广告失败：' + err.message);
+            }
+        }
+
+        // 保存广告编辑
+        async function saveAdEdit() {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl) {
+                alert('请先填写并保存Worker地址！');
+                return;
+            }
+            
+            const adId = document.getElementById('editAdId').value;
+            if (!adId) {
+                alert('广告ID不存在');
+                return;
+            }
+            
+            const updatedAd = {
+                name: document.getElementById('editAdName').value.trim(),
+                type: document.getElementById('editAdType').value,
+                content: document.getElementById('editAdContent').value.trim(),
+                placement: document.getElementById('editAdPlacement').value,
+                status: document.getElementById('editAdStatus').value
+            };
+            
+            // 校验必填项
+            if (!updatedAd.name) {
+                alert('请输入广告名称');
+                return;
+            }
+            if (!updatedAd.content) {
+                alert('请输入广告内容');
+                return;
+            }
+            if (!updatedAd.placement) {
+                alert('请选择关联的广告位');
+                return;
+            }
+            // 图片广告额外校验
+            if (updatedAd.type === 'image' && !updatedAd.content.startsWith('http')) {
+                if (!confirm('图片URL似乎不是完整链接，是否继续？')) {
+                    return;
+                }
+            }
+            
+            try {
+                const res = await fetch(workerUrl + '/ad/edit?id=' + adId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatedAd)
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert('广告更新成功！');
+                    // 关闭弹窗
+                    closeModal('editModal');
+                    // 刷新广告列表
+                    loadAdList();
+                } else {
+                    alert('更新失败：' + (data.error || '未知错误'));
+                }
+            } catch (err) {
+                alert('更新失败：' + err.message);
             }
         }
 
@@ -667,6 +902,26 @@
                 }
             } catch (err) {
                 alert('删除失败：' + err.message);
+            }
+        }
+
+        // 根据ID获取广告详情
+        async function getAdById(adId) {
+            const workerUrl = getWorkerUrl();
+            if (!workerUrl || !adId) return null;
+            
+            try {
+                // 先获取所有广告，然后找到目标广告（因为没有单独的获取接口）
+                const res = await fetch(workerUrl + '/ad/list');
+                const data = await res.json();
+                
+                if (data.data && data.data.length > 0) {
+                    return data.data.find(ad => ad.id === adId) || null;
+                }
+                return null;
+            } catch (err) {
+                console.error('获取广告详情失败:', err);
+                return null;
             }
         }
 
@@ -826,6 +1081,7 @@
         // 全局函数声明（供HTML中onclick调用）
         window.deletePlacement = deletePlacement;
         window.deleteAd = deleteAd;
+        window.editAd = editAd;
     </script>
 </body>
 </html>
