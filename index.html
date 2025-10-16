@@ -163,7 +163,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     justify-content: center;
 }
 
-/* 底部互动区 */
+/* 修复1：确保手机Chrome底部评论框可见（增强安全区域适配） */
 .interaction-bar {
     position: absolute;
     bottom: 0;
@@ -176,8 +176,9 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     align-items: center;
     padding: 0 15px;
     box-sizing: border-box;
-    padding-bottom: constant(safe-area-inset-bottom);
-    padding-bottom: env(safe-area-inset-bottom);
+    /* 强制适配手机底部导航栏，确保不被遮挡 */
+    padding-bottom: max(5px, constant(safe-area-inset-bottom));
+    padding-bottom: max(5px, env(safe-area-inset-bottom));
 }
 
 .danmaku-input {
@@ -232,42 +233,22 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     padding: 5px 10px;
     border-radius: 20px;
 }
-
-/* 播放提示覆盖层（新增：当视频无法自动播放时显示） */
-.play-prompt {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0,0,0,0.7);
-    color: white;
-    padding: 10px 20px;
-    border-radius: 30px;
-    font-size: 14px;
-    z-index: 30;
-    display: none;
-}
 </style>
 </head>
 <body>
     <div class="app" ontouchmove="return false;">
-        <!-- 视频播放器：恢复muted属性以兼容自动播放政策，添加备用视频源 -->
+        <!-- 视频播放器：移除muted属性，确保点击可播放 -->
         <video id="player" 
                src="https://tucdn.wpon.cn/api-girl/videos/76.mp4" 
-               autoplay preload muted 
+               autoplay preload 
                webkit-playsinline='true' playsinline='true' 
                x5-video-player-type='h5' 
                x5-video-player-fullscreen='true' 
                x5-video-ignore-metadata='true' 
-               poster="https://gd-hbimg.huaban.com/dd5c3c7f9ab5aa97ff3b84852f834f47873bd2a5fee0-tBa7jJ_fw658webp">
-            <!-- 新增备用视频源 -->
+               poster="https://i.imgs.ovh/2025/10/16/7JjHvL.webp">
+            <!-- 备用视频源 -->
             <source src="https://tucdn.wpon.cn/api-girl/videos/68.mp4" type="video/mp4">
         </video>
-        
-        <!-- 播放提示（当自动播放失败时显示） -->
-        <div class="play-prompt" id="playPrompt">
-            <i class="fa fa-play-circle"></i> 点击播放视频
-        </div>
         
         <!-- 滑动提示 -->
         <div class="swipe-hint">
@@ -276,7 +257,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         
         <!-- 视频信息提示 -->
         <div class="video-info">
-            <i class="fa fa-info-circle"></i> 视频加载中，若无法播放请点击屏幕
+            <i class="fa fa-info-circle"></i> 点击屏幕播放/暂停视频
         </div>
         
         <!-- 评论区 -->
@@ -326,35 +307,20 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         const commentsContainer = document.getElementById('commentsContainer');
         const adBanner = document.getElementById('adBanner');
         const player = document.getElementById('player');
-        const playPrompt = document.getElementById('playPrompt');
         
-        // 修复1：处理视频自动播放失败的情况
-        player.addEventListener('play', function() {
-            playPrompt.style.display = 'none'; // 播放成功则隐藏提示
-        });
-        
-        player.addEventListener('error', function() {
-            playPrompt.style.display = 'block'; // 播放失败显示提示
-            document.querySelector('.video-info').innerHTML = '<i class="fa fa-exclamation-triangle"></i> 视频加载失败，请点击重试';
-        });
-        
-        // 修复2：点击视频/提示层强制播放（解决浏览器自动播放限制）
-        player.addEventListener('click', togglePlay);
-        playPrompt.addEventListener('click', togglePlay);
-        
-        function togglePlay() {
-            if (player.paused) {
-                // 尝试带声音播放，失败则静音播放
-                player.play().catch(() => {
-                    player.muted = true;
-                    player.play();
+        // 修复2：确保点击视频能播放/暂停（移除复杂逻辑，仅保留基础功能）
+        player.addEventListener('click', function() {
+            if (this.paused) {
+                this.play().catch(err => {
+                    // 仅在控制台输出错误，不影响用户点击
+                    console.log('播放失败:', err);
                 });
             } else {
-                player.pause();
+                this.pause();
             }
-        }
+        });
         
-        // 接口处理：直接返回URL字符串
+        // 接口处理：保持原样
         function getRandomVideoFromApi() {
             return new Promise((resolve, reject) => {
                 $.get(url)
@@ -375,7 +341,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
             });
         }
         
-        // 视频播放逻辑
+        // 视频播放逻辑：保持原样
         player.addEventListener('ended', function() {
             if (auto) {
                 this.currentTime = 0;
@@ -399,7 +365,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
             }
         });
         
-        // 滑动切换视频逻辑
+        // 滑动切换视频逻辑：保持原样
         document.addEventListener('touchstart', function(e) {
             startX = e.touches[0].clientX;
         }, false);
@@ -433,10 +399,9 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
             }
         }
         
-        // 修复3：优化视频切换逻辑，确保播放成功
+        // 切换视频函数：确保播放逻辑可靠
         function changeVideo(index) {
             player.pause();
-            playPrompt.style.display = 'none'; // 隐藏提示
             layer.msg('切换视频中...');
             document.querySelector('.video-info').innerHTML = '<i class="fa fa-spinner fa-spin"></i> 切换视频中...';
             
@@ -449,25 +414,15 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
                     vdurlold.push(videoUrl);
                 }
                 
-                // 加载并尝试播放，处理可能的失败
+                // 简化播放逻辑，确保切换后可点击播放
                 player.load();
-                player.play()
-                    .then(() => {
-                        document.querySelector('.video-info').innerHTML = '<i class="fa fa-info-circle"></i> 视频加载中，若无法播放请点击屏幕';
-                        commentsWrapper.innerHTML = '';
-                        for (let i = 0; i < 4; i++) {
-                            setTimeout(() => addComment(), i * 400);
-                        }
-                    })
-                    .catch(() => {
-                        // 播放失败时显示提示，允许用户手动触发
-                        playPrompt.style.display = 'block';
-                        document.querySelector('.video-info').innerHTML = '<i class="fa fa-exclamation-triangle"></i> 视频加载失败，请点击重试';
-                    });
+                setTimeout(() => {
+                    document.querySelector('.video-info').innerHTML = '<i class="fa fa-info-circle"></i> 点击屏幕播放/暂停视频';
+                }, 1000);
             }
         }
         
-        // 评论区相关逻辑（保持不变）
+        // 评论区、弹幕发送等其他功能保持不变
         function generatePhoneNumber() {
             const prefix = ['130', '131', '132', '133', '134', '135', '136', '137', '138', '139', '150', '151', '152', '153', '155', '156', '157', '158', '159', '170', '171', '173', '176', '177', '180', '181', '182', '183', '184', '185', '186', '187', '188', '189'];
             const randomPrefix = prefix[Math.floor(Math.random() * prefix.length)];
