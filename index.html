@@ -11,17 +11,24 @@
 <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/css/layui.css">
 <script src="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/layui.js"></script>
 <style type="text/css">
-/* 所有样式保留原始代码 */
 @charset "utf-8";
 *{
     margin: 0; 
     padding: 0;
     touch-action: auto;
 }
+/* 修复1：页面全屏显示，确保所有元素可见 */
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
 .app{
     width: 100vw; 
     height: 100vh; 
     position: absolute;
+    top: 0;
+    left: 0;
     margin: 0;
     overflow: hidden;
     background-color: #000;
@@ -156,7 +163,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     justify-content: center;
 }
 
-/* 底部互动区 */
+/* 修复2：确保底部发送窗口始终可见 */
 .interaction-bar {
     position: absolute;
     bottom: 0;
@@ -227,7 +234,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
 </head>
 <body>
     <div class="app" ontouchmove="return false;">
-        <!-- 视频播放器：修复全屏属性 -->
+        <!-- 视频播放器 -->
         <video id="player" 
                src="https://tucdn.wpon.cn/api-girl/videos/76.mp4" 
                autoplay preload 
@@ -235,8 +242,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
                x5-video-player-type='h5' 
                x5-video-player-fullscreen='true' 
                x5-video-ignore-metadata='true' 
-               x5-fullscreen="true"  <!-- 新增：强制X5内核全屏 -->
-               x5-video-orientation="landscape|portrait"  <!-- 新增：支持横竖屏 -->
                poster="https://gd-hbimg.huaban.com/dd5c3c7f9ab5aa97ff3b84852f834f47873bd2a5fee0-tBa7jJ_fw658webp">
         </video>
         
@@ -281,6 +286,7 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         let gi_max = 1;
         let vdnum = 0;
         const url = "./get-random-url"; // 视频接口地址
+        // 修复3：恢复历史播放记录数组
         let vdurlold = new Array("https://tucdn.wpon.cn/api-girl/videos/76.mp4");
         let vdurl_arr = new Array(
             "https://tucdn.wpon.cn/api-girl/videos/76.mp4",
@@ -298,16 +304,22 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         const adBanner = document.getElementById('adBanner');
         const player = document.getElementById('player');
         
-        // 修复：接口请求逻辑（匹配JSON返回格式）
+        // 修复4：正确处理接口返回的视频URL（接口直接返回URL字符串）
         function getRandomVideoFromApi() {
             return new Promise((resolve, reject) => {
                 $.get(url)
-                    .done(function(data) {
-                        // 假设接口返回格式：{"videoUrl": "视频地址"}
-                        if (data && data.videoUrl) {
-                            resolve(data.videoUrl.trim());
+                    .done(function(videoUrl) {
+                        // 接口直接返回URL字符串，无需解析JSON
+                        if (videoUrl && videoUrl.trim()) {
+                            // 检查是否已播放过，避免重复
+                            if (vdurlold.includes(videoUrl.trim())) {
+                                // 如果已播放过，重新获取
+                                getRandomVideoFromApi().then(resolve).catch(reject);
+                            } else {
+                                resolve(videoUrl.trim());
+                            }
                         } else {
-                            reject(new Error('接口返回格式不正确'));
+                            reject(new Error('接口返回空地址'));
                         }
                     })
                     .fail(function(xhr, status, err) {
@@ -330,7 +342,12 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
                     })
                     .catch(err => {
                         console.log('接口获取视频失败，使用本地数组', err);
-                        currentVideoIndex = (currentVideoIndex + 1) % vdurl_arr.length;
+                        // 从本地数组中找一个未播放过的视频
+                        let nextIndex = (currentVideoIndex + 1) % vdurl_arr.length;
+                        while (vdurlold.includes(vdurl_arr[nextIndex]) && vdurl_arr.length > 1) {
+                            nextIndex = (nextIndex + 1) % vdurl_arr.length;
+                        }
+                        currentVideoIndex = nextIndex;
                         changeVideo(currentVideoIndex);
                     });
             }
@@ -348,10 +365,10 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         
         function handleSwipe() {
             const diffX = startX - endX;
-            if (diffX < -swipeThreshold) { 
+            if (diffX < -swipeThreshold) { // 向右滑动（上一个）
                 currentVideoIndex = (currentVideoIndex - 1 + vdurl_arr.length) % vdurl_arr.length;
                 changeVideo(currentVideoIndex);
-            } else if (diffX > swipeThreshold) { 
+            } else if (diffX > swipeThreshold) { // 向左滑动（下一个）
                 getRandomVideoFromApi()
                     .then(newUrl => {
                         vdurl_arr.push(newUrl);
@@ -359,13 +376,19 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
                         changeVideo(currentVideoIndex);
                     })
                     .catch(err => {
-                        currentVideoIndex = (currentVideoIndex + 1) % vdurl_arr.length;
+                        console.log('接口获取视频失败，使用本地数组', err);
+                        // 从本地数组中找一个未播放过的视频
+                        let nextIndex = (currentVideoIndex + 1) % vdurl_arr.length;
+                        while (vdurlold.includes(vdurl_arr[nextIndex]) && vdurl_arr.length > 1) {
+                            nextIndex = (nextIndex + 1) % vdurl_arr.length;
+                        }
+                        currentVideoIndex = nextIndex;
                         changeVideo(currentVideoIndex);
                     });
             }
         }
         
-        // 修复：视频播放状态同步（添加加载监听和超时处理）
+        // 切换视频函数
         function changeVideo(index) {
             player.pause();
             layer.msg('切换视频中...');
@@ -373,45 +396,26 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
             
             vdnum = index;
             if (vdurl_arr.length > 0 && index >= 0 && index < vdurl_arr.length) {
-                player.src = vdurl_arr[index];
-                if (!vdurlold.includes(vdurl_arr[index])) {
-                    vdurlold.push(vdurl_arr[index]);
+                const videoUrl = vdurl_arr[index];
+                player.src = videoUrl;
+                
+                // 修复5：恢复记录历史播放，避免重复播放
+                if (!vdurlold.includes(videoUrl)) {
+                    vdurlold.push(videoUrl);
                 }
                 
-                // 移除之前的事件监听，避免重复触发
-                player.removeEventListener('loadedmetadata', onLoaded);
-                player.removeEventListener('error', onError);
-                
-                // 监听视频加载完成
-                function onLoaded() {
-                    player.play()
-                        .then(() => {
-                            document.querySelector('.video-info').innerHTML = '<i class="fa fa-info-circle"></i> 视频加载中，若无法播放请刷新页面';
-                            commentsWrapper.innerHTML = '';
-                            for (let i = 0; i < 4; i++) {
-                                setTimeout(() => addComment(), i * 400);
-                            }
-                        })
-                        .catch(err => onError());
-                }
-                
-                // 监听加载错误
-                function onError() {
-                    console.error('视频切换失败');
+                player.load();
+                player.play().then(() => {
+                    document.querySelector('.video-info').innerHTML = '<i class="fa fa-info-circle"></i> 视频加载中，若无法播放请刷新页面';
+                    commentsWrapper.innerHTML = '';
+                    for (let i = 0; i < 4; i++) {
+                        setTimeout(() => addComment(), i * 400);
+                    }
+                }).catch(err => {
+                    console.error('视频切换失败:', err);
                     layer.msg('视频切换失败，请重试');
                     document.querySelector('.video-info').innerHTML = '<i class="fa fa-exclamation-triangle"></i> 视频切换失败，请重试';
-                }
-                
-                player.addEventListener('loadedmetadata', onLoaded);
-                player.addEventListener('error', onError);
-                player.load();
-                
-                // 5秒超时处理
-                const timeoutTimer = setTimeout(() => {
-                    if (player.readyState < 2) { // 未加载到可播放状态
-                        onError();
-                    }
-                }, 5000);
+                });
             }
         }
         
