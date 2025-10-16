@@ -5,11 +5,15 @@
 <meta name="google" value="notranslate">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
 <title>抖音直播间</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://cdn.bootcdn.net/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/css/layui.css">
-<script src="https://cdn.bootcdn.net/ajax/libs/layui/2.9.6/layui.js"></script>
+<!-- Tailwind CSS：用于快速构建界面样式的CSS框架 -->
+
+<!-- 可用的font-awesome CDN -->
+<link href="https://cdn.jsdmirror.com/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+<!-- 替换为您提供的可用layui CDN -->
+<link rel="stylesheet" href="https://cdn.jsdmirror.com/npm/layuicdns@1.6.3/layui-v2.10.0/css/layui.css">
+<script src="https://cdn.jsdmirror.com/npm/layuicdns@1.6.3/layui-v2.10.0/layui.js"></script>
 <style type="text/css">
+/* 保持原有样式不变 */
 @charset "utf-8";
 *{
     margin: 0; 
@@ -41,7 +45,7 @@
     width: 100%;
     height: 100%;
     background-color: #000;
-    background-image: url("https://gd-hbimg.huaban.com/dd5c3c7f9ab5aa97ff3b84852f834f47873bd2a5fee0-tBa7jJ_fw658webp");
+    background-image: url("https://i.imgs.ovh/2025/10/16/7JjHvL.webp");
     background-size: cover;
     background-position: center;
     z-index: 9;
@@ -117,7 +121,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     pointer-events: none;
     padding-left: 10px;
     box-sizing: border-box;
-    /* 初始值将被JS动态修改 */
     bottom: 130px;
     transition: bottom 0.3s ease;
 }
@@ -171,7 +174,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     font-size: 11px;
 }
 
-/* 广告容器结构 */
 .ad-container {
     position: absolute;
     bottom: 60px;
@@ -216,7 +218,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     border-radius: 5px;
 }
 
-/* 美化关闭按钮 */
 .ad-close-container {
     position: absolute;
     top: -12px;
@@ -242,7 +243,6 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
     transition: all 0.2s ease;
 }
 
-/* 悬停和点击效果 */
 .close-ad:hover {
     background-color: #FE2C55;
     transform: scale(1.05);
@@ -324,11 +324,12 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
 </head>
 <body>
     <div class="app">
+        <!-- 保持原有DOM结构不变 -->
         <div id="video-placeholder">
             <i class="fa fa-spinner fa-spin mr-2"></i> 页面加载中...
         </div>
         
-        <video id="player" src="" preload muted autoplay webkit-playsinline='true' playsinline='true' x5-video-player-type='h5-page' x5-video-player-fullscreen='false' poster="https://gd-hbimg.huaban.com/dd5c3c7f9ab5aa97ff3b84852f834f47873bd2a5fee0-tBa7jJ_fw658webp"></video>
+        <video id="player" src="" preload muted autoplay webkit-playsinline='true' playsinline='true' x5-video-player-type='h5-page' x5-video-player-fullscreen='false' poster="https://i.imgs.ovh/2025/10/16/7JjHvL.webp"></video>
         
         <video id="preload-video" preload="none" webkit-playsinline='true' playsinline='true'></video>
         
@@ -371,7 +372,8 @@ video::-webkit-media-controls-panel { width: calc(100% + 30px); }
         </div>
     </div>
 
-    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <!-- 使用jsdelivr的jquery CDN（兼容性好） -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
     <script>
     window.addEventListener('load', function() {
         console.log('页面加载完成，初始化中...');
